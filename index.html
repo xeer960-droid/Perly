@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Sky Sprint</title>
+  <style>
+    :root {
+      --bg1: #0f172a;
+      --bg2: #1d4ed8;
+      --panel: rgba(15, 23, 42, 0.82);
+      --line: rgba(255, 255, 255, 0.12);
+      --text: #e5eefc;
+      --muted: #9db3d9;
+      --accent: #22c55e;
+      --accent-2: #f97316;
+      --danger: #fb7185;
+      --shadow: 0 18px 45px rgba(0, 0, 0, 0.28);
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html, body {
+      margin: 0;
+      height: 100%;
+      overflow: hidden;
+      font-family: Arial, Helvetica, sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top, rgba(255, 255, 255, 0.16), transparent 25%),
+        linear-gradient(180deg, var(--bg2), var(--bg1));
+    }
+
+    body {
+      display: grid;
+      place-items: center;
+    }
+
+    .shell {
+      width: min(100vw, 540px);
+      height: min(100vh, 920px);
+      padding: 14px;
+    }
+
+    .game-wrap {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      border-radius: 26px;
+      overflow: hidden;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.01));
+    }
+
+    .hud {
+      position: absolute;
+      top: 14px;
+      left: 14px;
+      right: 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    .pill {
+      padding: 10px 14px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.5);
+      backdrop-filter: blur(6px);
+      font-weight: bold;
+      letter-spacing: 0.03em;
+    }
+
+    .overlay {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      padding: 28px;
+      background: linear-gradient(180deg, rgba(15, 23, 42, 0.18), rgba(15, 23, 42, 0.78));
+      z-index: 3;
+    }
+
+    .panel {
+      width: min(100%, 360px);
+      padding: 22px;
+      border-radius: 24px;
+      background: rgba(15, 23, 42, 0.76);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: clamp(32px, 7vw, 52px);
+      line-height: 0.95;
+    }
+
+    p {
+      margin: 8px 0;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .big-score {
+      margin: 16px 0 6px;
+      font-size: 42px;
+      font-weight: 900;
+      color: #fff;
+    }
+
+    button {
+      margin-top: 16px;
+      width: 100%;
+      border: 0;
+      border-radius: 16px;
+      padding: 14px 18px;
+      font-size: 17px;
+      font-weight: 800;
+      color: white;
+      background: linear-gradient(180deg, #22c55e, #16a34a);
+      cursor: pointer;
+      box-shadow: 0 12px 24px rgba(34, 197, 94, 0.28);
+    }
+
+    button:active {
+      transform: translateY(1px);
+    }
+
+    .controls {
+      position: absolute;
+      left: 14px;
+      right: 14px;
+      bottom: 14px;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      z-index: 2;
+    }
+
+    .touch-btn {
+      flex: 1;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 16px 10px;
+      text-align: center;
+      font-size: 24px;
+      font-weight: 900;
+      color: #fff;
+      background: rgba(15, 23, 42, 0.46);
+      user-select: none;
+      touch-action: manipulation;
+    }
+
+    .touch-btn:active {
+      background: rgba(255, 255, 255, 0.16);
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    @media (min-width: 700px) and (pointer: fine) {
+      .controls {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="game-wrap">
+      <canvas id="game" width="480" height="800" aria-label="Sky Sprint game canvas"></canvas>
+
+      <div class="hud">
+        <div class="pill">Score: <span id="score">0</span></div>
+        <div class="pill">Best: <span id="best">0</span></div>
+      </div>
+
+      <div class="overlay" id="startScreen">
+        <div class="panel">
+          <h1>Sky Sprint</h1>
+          <p>Dash across floating lanes and dodge the falling hazard blocks.</p>
+          <p>Desktop: arrow keys or A/D<br>Mobile: on-screen buttons</p>
+          <button id="startBtn">Start Game</button>
+        </div>
+      </div>
+
+      <div class="overlay hidden" id="gameOverScreen">
+        <div class="panel">
+          <h1>Game Over</h1>
+          <p>Your run ended, but the sky is still yours.</p>
+          <div class="big-score" id="finalScore">0</div>
+          <p>Best score: <span id="finalBest">0</span></p>
+          <button id="restartBtn">Play Again</button>
+        </div>
+      </div>
+
+      <div class="controls">
+        <div class="touch-btn" id="leftBtn">◀</div>
+        <div class="touch-btn" id="rightBtn">▶</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /*
+      Sky Sprint
+      Single-file HTML5 Canvas game
+      Controls:
+      - Desktop: ArrowLeft / ArrowRight / A / D
+      - Mobile: touch buttons
+    */
+
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+
+    const scoreEl = document.getElementById("score");
+    const bestEl = document.getElementById("best");
+    const startScreen = document.getElementById("startScreen");
+    const gameOverScreen = document.getElementById("gameOverScreen");
+    const finalScoreEl = document.getElementById("finalScore");
+    const finalBestEl = document.getElementById("finalBest");
+    const startBtn = document.getElementById("startBtn");
+    const restartBtn = document.getElementById("restartBtn");
+    const leftBtn = document.getElementById("leftBtn");
+    const rightBtn = document.getElementById("rightBtn");
+
+    const W = canvas.width;
+    const H = canvas.height;
+
+    const LANES = [W * 0.22, W * 0.5, W * 0.78];
+    const PLAYER_Y = H - 115;
+
+    let animationId = 0;
+    let running = false;
+    let gameOver = false;
+    let score = 0;
+    let bestScore = Number(localStorage.getItem("sky-sprint-best") || 0);
+    let distanceTimer = 0;
+    let spawnTimer = 0;
+    let speed = 290;
+    let flashTimer = 0;
+
+    const input = {
+      left: false,
+      right: false
+    };
+
+    const player = {
+      lane: 1,
+      targetLane: 1,
+      x: LANES[1],
+      y: PLAYER_Y,
+      radius: 28,
+      bob: 0
+    };
+
+    const obstacles = [];
+    const particles = [];
+    const stars = [];
+
+    bestEl.textContent = bestScore;
+
+    for (let i = 0; i < 70; i++) {
+      stars.push({
+        x: Math.random() * W,
+        y: Math.random() * H,
+        r: Math.random() * 2 + 0.4,
+        s: Math.random() * 24 + 10,
+        a: Math.random() * 0.7 + 0.2
+      });
+    }
+
+    function resetGame() {
+      score = 0;
+      distanceTimer = 0;
+      spawnTimer = 0;
+      speed = 290;
+      flashTimer = 0;
+      obstacles.length = 0;
+      particles.length = 0;
+      player.lane = 1;
+      player.targetLane = 1;
+      player.x = LANES[1];
+      player.y = PLAYER_Y;
+      gameOver = false;
+      updateScore(0);
+    }
+
+    function startGame() {
+      resetGame();
+      running = true;
+      startScreen.classList.add("hidden");
+      gameOverScreen.classList.add("hidden");
+      cancelAnimationFrame(animationId);
+      lastTime = performance.now();
+      animationId = requestAnimationFrame(loop);
+    }
+
+    function endGame() {
+      running = false;
+      gameOver = true;
+      finalScoreEl.textContent = score;
+      finalBestEl.textContent = bestScore;
+      gameOverScreen.classList.remove("hidden");
+    }
+
+    function updateScore(value) {
+      score = value;
+      if (score > bestScore) {
+        bestScore = score;
+        localStorage.setItem("sky-sprint-best", String(bestScore));
+      }
+      scoreEl.textContent = score;
+      bestEl.textContent = bestScore;
+    }
+
+    function moveLeft() {
+      player.targetLane = Math.max(0, player.targetLane - 1);
+    }
+
+    function moveRight() {
+      player.targetLane = Math.min(LANES.length - 1, player.targetLane + 1);
+    }
+
+    function createObstacle() {
+      const lane = Math.floor(Math.random() * LANES.length);
+      const size = 34 + Math.random() * 24;
+      obstacles.push({
+        lane,
+        x: LANES[lane],
+        y: -80,
+        size,
+        rot: Math.random() * Math.PI,
+        spin: (Math.random() * 2 - 1) * 2.6,
+        hue: Math.random() > 0.5 ? 340 : 24
+      });
+    }
+
+    function burst(x, y, color, count) {
+      for (let i = 0; i < count; i++) {
+        particles.push({
+          x,
+          y,
+          vx: (Math.random() * 2 - 1) * 220,
+          vy: (Math.random() * 2 - 1) * 220,
+          life: Math.random() * 0.6 + 0.3,
+          maxLife: 1,
+          size: Math.random() * 5 + 2,
+          color
+        });
+      }
+    }
+
+    function update(dt) {
+      const targetX = LANES[player.targetLane];
+      player.x += (targetX - player.x) * Math.min(1, dt * 14);
+      player.lane = player.targetLane;
+      player.bob += dt * 7;
+
+      speed += dt * 4.5;
+      spawnTimer += dt;
+      distanceTimer += dt;
+
+      if (distanceTimer >= 0.18) {
+        distanceTimer = 0;
+        updateScore(score + 1);
+      }
+
+      const spawnEvery = Math.max(0.34, 0.78 - (speed - 290) / 850);
+      if (spawnTimer >= spawnEvery) {
+        spawnTimer = 0;
+        createObstacle();
+        if (Math.random() < 0.18) {
+          createObstacle();
+        }
+      }
+
+      for (const star of stars) {
+        star.y += star.s * dt;
+        if (star.y > H + 4) {
+          star.y = -4;
+          star.x = Math.random() * W;
+        }
+      }
+
+      for (let i = obstacles.length - 1; i >= 0; i--) {
+        const o = obstacles[i];
+        o.y += speed * dt;
+        o.rot += o.spin * dt;
+
+        if (o.y > H + 100) {
+          obstacles.splice(i, 1);
+          continue;
+        }
+
+        const dx = Math.abs(o.x - player.x);
+        const dy = Math.abs(o.y - player.y);
+        const hitX = dx < o.size * 0.55 + player.radius * 0.7;
+        const hitY = dy < o.size * 0.55 + player.radius * 0.9;
+
+        if (hitX && hitY) {
+          flashTimer = 0.2;
+          burst(player.x, player.y, "#fb7185", 26);
+          endGame();
+          return;
+        }
+      }
+
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.life -= dt;
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.vx *= 0.985;
+        p.vy *= 0.985;
+        p.vy += 240 * dt;
+
+        if (p.life <= 0) {
+          particles.splice(i, 1);
+        }
+      }
+
+      if (flashTimer > 0) {
+        flashTimer -= dt;
+      }
+    }
+
+    function drawRoundedRect(x, y, w, h, r, fill) {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + w, y, x + w, y + h, r);
+      ctx.arcTo(x + w, y + h, x, y + h, r);
+      ctx.arcTo(x, y + h, x, y, r);
+      ctx.arcTo(x, y, x + w, y, r);
+      ctx.closePath();
+      ctx.fillStyle = fill;
+      ctx.fill();
+    }
+
+    function drawBackground() {
+      const grad = ctx.createLinearGradient(0, 0, 0, H);
+      grad.addColorStop(0, "#60a5fa");
+      grad.addColorStop(0.55, "#2563eb");
+      grad.addColorStop(1, "#0f172a");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, W, H);
+
+      for (const star of stars) {
+        ctx.globalAlpha = star.a;
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath();
+        ctx.arc(star.x, star.y, star.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+
+      ctx.strokeStyle = "rgba(255,255,255,0.16)";
+      ctx.lineWidth = 4;
+      ctx.setLineDash([10, 14]);
+      for (const laneX of LANES) {
+        ctx.beginPath();
+        ctx.moveTo(laneX, 80);
+        ctx.lineTo(laneX, H - 30);
+        ctx.stroke();
+      }
+      ctx.setLineDash([]);
+
+      const halo = ctx.createRadialGradient(W / 2, 130, 20, W / 2, 130, 240);
+      halo.addColorStop(0, "rgba(255,255,255,0.26)");
+      halo.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.fillStyle = halo;
+      ctx.fillRect(0, 0, W, 320);
+    }
+
+    function drawPlayer() {
+      const bobY = Math.sin(player.bob) * 4;
+      const x = player.x;
+      const y = player.y + bobY;
+
+      ctx.fillStyle = "rgba(0,0,0,0.22)";
+      ctx.beginPath();
+      ctx.ellipse(x, y + 40, 28, 10, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      const bodyGrad = ctx.createLinearGradient(x, y - 30, x, y + 30);
+      bodyGrad.addColorStop(0, "#fdba74");
+      bodyGrad.addColorStop(1, "#f97316");
+      ctx.fillStyle = bodyGrad;
+      ctx.beginPath();
+      ctx.arc(x, y, player.radius, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "rgba(255,255,255,0.28)";
+      ctx.beginPath();
+      ctx.arc(x - 9, y - 10, 10, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "#0f172a";
+      ctx.beginPath();
+      ctx.arc(x - 9, y - 2, 3.2, 0, Math.PI * 2);
+      ctx.arc(x + 9, y - 2, 3.2, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = "#f8fafc";
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(x - 10, y + 25);
+      ctx.lineTo(x - 14, y + 36);
+      ctx.moveTo(x + 10, y + 25);
+      ctx.lineTo(x + 14, y + 36);
+      ctx.stroke();
+    }
+
+    function drawObstacles() {
+      for (const o of obstacles) {
+        ctx.save();
+        ctx.translate(o.x, o.y);
+        ctx.rotate(o.rot);
+
+        const grad = ctx.createLinearGradient(-o.size / 2, -o.size / 2, o.size / 2, o.size / 2);
+        if (o.hue === 340) {
+          grad.addColorStop(0, "#fda4af");
+          grad.addColorStop(1, "#e11d48");
+        } else {
+          grad.addColorStop(0, "#fdba74");
+          grad.addColorStop(1, "#ea580c");
+        }
+
+        drawRoundedRect(-o.size / 2, -o.size / 2, o.size, o.size, 12, grad);
+
+        ctx.fillStyle = "rgba(255,255,255,0.22)";
+        ctx.fillRect(-o.size * 0.18, -o.size * 0.28, o.size * 0.14, o.size * 0.56);
+
+        ctx.restore();
+      }
+    }
+
+    function drawParticles() {
+      for (const p of particles) {
+        ctx.globalAlpha = Math.max(0, p.life / p.maxLife);
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    function drawFlash() {
+      if (flashTimer <= 0) return;
+      ctx.fillStyle = `rgba(255,255,255,${flashTimer * 1.8})`;
+      ctx.fillRect(0, 0, W, H);
+    }
+
+    function draw() {
+      drawBackground();
+      drawObstacles();
+      drawPlayer();
+      drawParticles();
+      drawFlash();
+    }
+
+    let lastTime = 0;
+    function loop(time) {
+      if (!running) return;
+      const dt = Math.min(0.033, (time - lastTime) / 1000);
+      lastTime = time;
+      update(dt);
+      draw();
+      animationId = requestAnimationFrame(loop);
+    }
+
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowLeft" || e.key === "a" || e.key === "A") {
+        if (!input.left) moveLeft();
+        input.left = true;
+      }
+      if (e.key === "ArrowRight" || e.key === "d" || e.key === "D") {
+        if (!input.right) moveRight();
+        input.right = true;
+      }
+      if ((e.key === "Enter" || e.key === " ") && !running) {
+        startGame();
+      }
+    });
+
+    window.addEventListener("keyup", (e) => {
+      if (e.key === "ArrowLeft" || e.key === "a" || e.key === "A") input.left = false;
+      if (e.key === "ArrowRight" || e.key === "d" || e.key === "D") input.right = false;
+    });
+
+    function bindHoldButton(el, onPress, onRelease) {
+      const press = (e) => {
+        e.preventDefault();
+        onPress();
+      };
+      const release = (e) => {
+        e.preventDefault();
+        onRelease();
+      };
+
+      el.addEventListener("pointerdown", press);
+      el.addEventListener("pointerup", release);
+      el.addEventListener("pointercancel", release);
+      el.addEventListener("pointerleave", release);
+    }
+
+    bindHoldButton(
+      leftBtn,
+      () => {
+        if (!running) return;
+        moveLeft();
+      },
+      () => {}
+    );
+
+    bindHoldButton(
+      rightBtn,
+      () => {
+        if (!running) return;
+        moveRight();
+      },
+      () => {}
+    );
+
+    startBtn.addEventListener("click", startGame);
+    restartBtn.addEventListener("click", startGame);
+
+    draw();
+  </script>
+</body>
+</html>
